@@ -6,9 +6,16 @@ class KinectRecorder {
 
     private int counter = 0;
     private int playhead = 0;
-    private String file;
+    private String file = null;
+
+    KinectRecorder() {
+    }
 
     KinectRecorder(String file) {
+        this.setFile(file);
+    }
+
+    void setFile(String file) {
         this.file = file;
     }
 
@@ -17,21 +24,6 @@ class KinectRecorder {
         byte[] b = this.convertToBytes(values);
         // disable recording
         //saveBytes(this.filename(this.counter++), this.convertToBytes(values));
-    }
-
-    PImage replay(int[] rawDepth) {
-        if (!this.replaying) return this.getImage(rawDepth);
-
-        File f = new File(sketchPath(this.filename(this.playhead)));
-        if (!f.isFile()){
-            playhead = 0;
-            f = new File(sketchPath(this.filename(this.playhead)));
-        }
-        if (f.isFile()) {
-            byte[] bytes = loadBytes(this.filename(this.playhead++));
-            return this.getImage(convertToFrame(bytes));
-        }
-        return null;
     }
 
     String filename(int counter) {
@@ -55,17 +47,29 @@ class KinectRecorder {
         return frame;
     }
 
-    PImage getImage(int[] raw) {
+    PImage getImage(int[] rawDepth) {
         PImage img = new PImage(640, 480, RGB);
         img.loadPixels();
-        for (int i = 0; i < raw.length; i++) {
-            img.pixels[i] = color(255 - raw[i] * 0xff / 2047);
+        for (int i = 0; i < rawDepth.length; i++) {
+            img.pixels[i] = color(255 - rawDepth[i] * 0xff / 2047);
         }
         img.updatePixels();
         return img;
     }
 
     int[] getRaw() {
+        if (replaying) {
+            File f = new File(sketchPath(this.filename(this.playhead)));
+            if (!f.isFile()){
+                playhead = 0;
+                f = new File(sketchPath(this.filename(this.playhead)));
+            }
+            if (f.isFile()) {
+                byte[] bytes = loadBytes(this.filename(this.playhead++));
+                return convertToFrame(bytes);
+            }
+        }
+        // default to noise
         int[] frame = new int[640 * 480];
         for (int i = 0; i < 640 * 480; i++) {
             frame[i] = int(random(0, 2048));

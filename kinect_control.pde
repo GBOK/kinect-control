@@ -21,7 +21,7 @@ void setup() {
     kinect = new Kinect(this);
     kinect.initDepth();
 
-    kr = new KinectRecorder("data/kinect_05/dat");
+    kr = new KinectRecorder();
     dp = new DepthProcessor(kinect.width, kinect.height);
 }
 
@@ -39,20 +39,11 @@ void draw() {
     }
 
     kr.sample(rawDepth);
-
-    image = kr.replay(rawDepth);
-
-    if (image == null && plugged){
-        //image = kinect.getDepthImage();
-    }
+    image = kr.getImage(rawDepth);
 
     if (image != null){
         image(image, 0, 0);
     }
-    // end override
-
-
-
 
     dp.process(rawDepth);
 
@@ -79,10 +70,21 @@ void keyPressed() {
         }
         angle = constrain(angle, 0, 30);
         kinect.setTilt(angle);
-    } else if (key == 'r') {
-        kr.startRecording();
-    } else if (key == 's') {
-        kr.stopRecording();
+    } else if (key == '1') {
+        kr.setFile("data/kinect_01/dat");
+        kr.startReplaying();
+    } else if (key == '2') {
+        kr.setFile("data/kinect_02/dat");
+        kr.startReplaying();
+    } else if (key == '3') {
+        kr.setFile("data/kinect_03/dat");
+        kr.startReplaying();
+    } else if (key == '4') {
+        kr.setFile("data/kinect_04/dat");
+        kr.startReplaying();
+    } else if (key == '5') {
+        kr.setFile("data/kinect_05/dat");
+        kr.startReplaying();
     } else if (key == ' ') {
         kr.startStopReplaying();
     }
