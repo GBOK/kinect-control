@@ -6,6 +6,7 @@ import org.openkinect.processing.*;
 Kinect kinect;
 DepthProcessor dp;
 KinectRecorder kr;
+Render3D r;
 
 int num = 5;
 int[][] t = new int[num][3];
@@ -13,60 +14,74 @@ int damper = 2;
 
 float angle = 0.0;
 
+float meter = 200f;
+
 boolean connected = false;
 
 void setup() {
-    size(640, 480, P3D);
+    size(1280, 960, P3D);
 
     kinect = new Kinect(this);
     kinect.initDepth();
 
-    kr = new KinectRecorder("data/kinect_05/dat");
+    kr = new KinectRecorder();
     dp = new DepthProcessor(kinect.width, kinect.height);
+    r = new Render3D(this, kinect.width, kinect.height);
 }
 
 void draw() {
-    pushMatrix();
+
+    background(0);
 
     int[] rawDepth = kinect.getRawDepth();
     // measure if plugged in (should give a nice "cathode noise" effect while not hooked in or is glitching)
     boolean plugged = rawDepth[0] + rawDepth[639] + rawDepth[153600] + rawDepth[306560] + rawDepth[307199] > 0;
-    PImage image;
 
     // override
     if (!plugged) {
         rawDepth = kr.getRaw();
     }
 
+    // this is for recorder. should go away
     kr.sample(rawDepth);
+    PImage image = kr.getImage(rawDepth);
+    // end recorder stuff
 
-    image = kr.replay(rawDepth);
+    dp.setRawData(rawDepth); // process
 
-    if (image == null && plugged){
-        //image = kinect.getDepthImage();
+    pushMatrix(); // center and rotate
+    translate(width / 2, height / 2);
+    rotateY(mouseX * TAU / width - PI);
+
+    r.draw(dp.getPoints(), meter);
+
+    //PVector p = dp.getTrack(); // get tracked point
+    //PVector p = dp.getAverage(); // get tracked point
+    //PVector p = dp.getWeighted(); // get tracked point
+    PVector p = dp.getCone(); // get tracked point
+
+    if (p != null) {
+        pushMatrix(); // bannerize
+        translate(p.x * meter, p.y * meter, -p.z * meter);
+        rotateY(-(mouseX * TAU / width - PI)); // banner
+        ellipseMode(CENTER);
+        pushStyle();
+        fill(255, 0, 0);
+        noStroke();
+        ellipse(0, 0, 10, 10);
+        popStyle();
+        popMatrix(); // end bannerize
     }
 
-    if (image != null){
-        image(image, 0, 0);
-    }
-    // end override
 
 
+    popMatrix(); // end center and rotate
 
-
-    dp.process(rawDepth);
-
-    PVector p = dp.getPoint(0);
-
-    ellipseMode(CENTER);
-    fill(255);
-    noStroke();
-    ellipse(p.x, p.y, 10, 10);
 
     fill(255);
     text("TILT: " + angle, 10, 20);
     text("KINECT: " + (plugged ? "DETECTED" : "N/A"), 10, 40);
-    popMatrix();
+    text("FPS:" + frameRate, 10, 60);
 }
 
 // Adjust the angle and the depth threshold min and max
@@ -79,10 +94,21 @@ void keyPressed() {
         }
         angle = constrain(angle, 0, 30);
         kinect.setTilt(angle);
-    } else if (key == 'r') {
-        kr.startRecording();
-    } else if (key == 's') {
-        kr.stopRecording();
+    } else if (key == '1') {
+        kr.setFile("data/kinect_01/dat");
+        kr.startReplaying();
+    } else if (key == '2') {
+        kr.setFile("data/kinect_02/dat");
+        kr.startReplaying();
+    } else if (key == '3') {
+        kr.setFile("data/kinect_03/dat");
+        kr.startReplaying();
+    } else if (key == '4') {
+        kr.setFile("data/kinect_04/dat");
+        kr.startReplaying();
+    } else if (key == '5') {
+        kr.setFile("data/kinect_05/dat");
+        kr.startReplaying();
     } else if (key == ' ') {
         kr.startStopReplaying();
     }
