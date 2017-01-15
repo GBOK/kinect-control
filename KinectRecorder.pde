@@ -72,7 +72,7 @@ class KinectRecorder {
         // default to noise
         int[] frame = new int[640 * 480];
         for (int i = 0; i < 640 * 480; i++) {
-            frame[i] = int(random(0, 2048));
+            frame[i] = int(random(0, 2000));
         }
         return frame;
     }
