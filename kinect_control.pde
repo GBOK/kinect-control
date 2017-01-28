@@ -58,7 +58,7 @@ void draw() {
     //PVector p = dp.getTrack(); // get tracked point
     //PVector p = dp.getAverage(); // get tracked point
     //PVector p = dp.getWeighted(); // get tracked point
-    PVector p = dp.getCone(); // get tracked point
+    PVector p = dp.detect(); // get tracked point
 
     if (p != null) {
         pushMatrix(); // bannerize

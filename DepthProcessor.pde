@@ -33,6 +33,82 @@ class DepthProcessor {
         }
     }
 
+    public PVector detect() {
+        // sort by depth
+        Collections.sort(this.points);
+        return this.getBlock();
+    }
+
+    public PVector getBlock() {
+        int counter = 0;
+        PVector inner = new PVector(0.3f, 0.3f, 0.3f);
+        PVector outer = new PVector(0.5f, 0.5f);
+
+        ArrayList<V> copy = new ArrayList<V>();
+        for (V v : this.points) {
+            if (v.z < 1.0f) {
+                copy.add(v);
+            } else {
+                break;
+            }
+        }
+
+
+        //println(copy.size());
+
+        while (!copy.isEmpty()) {
+            V tip = copy.get(0);
+
+            PVector imin = new PVector(tip.x - inner.x, tip.y - inner.y);
+            PVector imax = new PVector(tip.x + inner.x, tip.y + inner.y);
+
+            PVector omin = new PVector(tip.x - outer.x, tip.y - outer.y);
+            PVector omax = new PVector(tip.x + outer.x, tip.y + outer.y);
+
+            float depth = tip.z + inner.z;
+
+            // what to drop
+            ArrayList<V> toRemove = new ArrayList<V>();
+            // measure
+            for (V v : copy){
+                if (v.z > depth) {
+                    //println("found");
+                    return tip;
+                } else if (imin.x <= v.x && v.x <= imax.x && imin.y <= v.y && v.y <= imax.y) {
+                    toRemove.add(v);
+                    continue;
+                } else if (omin.x <= v.x && v.x <= omax.x && omin.y <= v.y && v.y <= omax.y) {
+                    toRemove.add(v);
+                    toRemove.add(tip);
+                    break;
+                }
+            }
+            copy.removeAll(toRemove);
+            if (++counter % 1000 == 0) {
+                //println(toRemove.size());
+                //println(copy.size());
+            }
+            //println(toRemove.size());
+            //println();
+
+        }
+
+        //println("nothing found");
+
+        return null;
+    }
+
+    private int inside(PVector imin, PVector imax, PVector omin, PVector omax, float depth, V v) {
+        // finish if we are out of the block scope
+        if (v.z > depth) return 0;
+        // inner box
+        if (imin.x <= v.x && v.x <= imax.x && imin.y <= v.y && v.y <= imax.y) return 1;
+        // outer box
+        if (omin.x <= v.x && v.x <= omax.x && omin.y <= v.y && v.y <= omax.y) return 2;
+        // outside
+        return 3;
+    }
+
     public PVector getCone() {
 
         int errors = 0; // current errors
@@ -100,6 +176,7 @@ class DepthProcessor {
 }
 
 class V extends PVector implements Comparable<V> {
+    public boolean skip = false;
     @Override
     public int compareTo(V d) {
         return this.z > d.z ? 1 : (this.z < d.z ? -1 : 0);
