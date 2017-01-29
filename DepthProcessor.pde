@@ -41,59 +41,39 @@ class DepthProcessor {
 
     public PVector getBlock() {
         int counter = 0;
-        PVector inner = new PVector(0.3f, 0.3f, 0.3f);
-        PVector outer = new PVector(0.5f, 0.5f);
+        PVector inner = new PVector(0.1f, 0.1f, 0.5f);
+        PVector outer = new PVector(1f, 1f);
+        ArrayList<Tracker> trackers = new ArrayList<Tracker>(10);
 
-        ArrayList<V> copy = new ArrayList<V>();
         for (V v : this.points) {
-            if (v.z < 1.0f) {
-                copy.add(v);
-            } else {
-                break;
-            }
-        }
 
+            boolean skip = false;
 
-        //println(copy.size());
-
-        while (!copy.isEmpty()) {
-            V tip = copy.get(0);
-
-            PVector imin = new PVector(tip.x - inner.x, tip.y - inner.y);
-            PVector imax = new PVector(tip.x + inner.x, tip.y + inner.y);
-
-            PVector omin = new PVector(tip.x - outer.x, tip.y - outer.y);
-            PVector omax = new PVector(tip.x + outer.x, tip.y + outer.y);
-
-            float depth = tip.z + inner.z;
-
-            // what to drop
-            ArrayList<V> toRemove = new ArrayList<V>();
-            // measure
-            for (V v : copy){
-                if (v.z > depth) {
-                    //println("found");
-                    return tip;
-                } else if (imin.x <= v.x && v.x <= imax.x && imin.y <= v.y && v.y <= imax.y) {
-                    toRemove.add(v);
-                    continue;
-                } else if (omin.x <= v.x && v.x <= omax.x && omin.y <= v.y && v.y <= omax.y) {
-                    toRemove.add(v);
-                    toRemove.add(tip);
-                    break;
+            outer:
+            for(Tracker t : trackers) {
+                switch (t.test(v)){
+                    case 0:
+                        if (t.weight > 100) {
+                            return new PVector(t.tip.x, t.tip.y, t.tip.z);
+                        } else {
+                            trackers.remove(t);
+                            break outer;
+                        }
+                    case 1:
+                        ++t.weight;
+                        skip = true;
+                        break outer;
+                    case 2:
+                        skip = true;
+                        trackers.remove(t);
+                        break outer;
                 }
             }
-            copy.removeAll(toRemove);
-            if (++counter % 1000 == 0) {
-                //println(toRemove.size());
-                //println(copy.size());
+            if (!skip && trackers.size() < 10) {
+                trackers.add(new Tracker(v, inner, outer));
             }
-            //println(toRemove.size());
-            //println();
 
         }
-
-        //println("nothing found");
 
         return null;
     }
@@ -180,5 +160,44 @@ class V extends PVector implements Comparable<V> {
     @Override
     public int compareTo(V d) {
         return this.z > d.z ? 1 : (this.z < d.z ? -1 : 0);
+    }
+}
+
+class Tracker {
+    public int weight = 0;
+    public V tip;
+    public PVector inner, outer, imin, imax, omin, omax;
+    public float depth;
+    public boolean done = false;
+
+    Tracker(V tip, PVector inner, PVector outer){
+        this.tip = tip;
+        this.inner = inner;
+        this.outer = outer;
+        this.recalculate();
+    }
+
+    public void recalculate() {
+        this.depth = this.tip.z + this.inner.z;
+        this.imin = new PVector(this.tip.x - this.inner.x, this.tip.y - this.inner.y);
+        this.imax = new PVector(this.tip.x + this.inner.x, this.tip.y + this.inner.y);
+        this.omin = new PVector(this.tip.x - this.outer.x, this.tip.y - this.outer.y);
+        this.omax = new PVector(this.tip.x + this.outer.x, this.tip.y + this.outer.y);
+    }
+
+    public void setTip(V tip) {
+        this.tip = tip;
+        this.recalculate();
+    }
+
+    public int test(V v) {
+        // detection completed
+        if (v.z > this.depth) return 0;
+        // inner box
+        if (this.imin.x <= v.x && v.x <= this.imax.x && this.imin.y <= v.y && v.y <= this.imax.y) return 1;
+        // outer box
+        if (this.omin.x <= v.x && v.x <= this.omax.x && this.omin.y <= v.y && v.y <= this.omax.y) return 2;
+        // outside
+        return 3;
     }
 }
