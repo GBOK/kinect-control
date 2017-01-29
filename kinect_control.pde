@@ -50,7 +50,7 @@ void draw() {
     dp.setRawData(rawDepth); // process
 
     pushMatrix(); // center and rotate
-    translate(width / 2, height / 2);
+    translate(width / 2, height / 2, width / 2);
     rotateY(mouseX * TAU / width - PI);
 
     r.draw(dp.getPoints(), meter);

@@ -41,8 +41,7 @@ class DepthProcessor {
 
     public PVector getBlock() {
         int counter = 0;
-        PVector inner = new PVector(0.1f, 0.1f, 0.5f);
-        PVector outer = new PVector(1f, 1f);
+        PVector box = new PVector(0.2f, 0.2f, 0.2f);
         ArrayList<Tracker> trackers = new ArrayList<Tracker>(10);
 
         for (V v : this.points) {
@@ -53,26 +52,26 @@ class DepthProcessor {
             for(Tracker t : trackers) {
                 switch (t.test(v)){
                     case 0:
-                        if (t.weight > 100) {
-                            return new PVector(t.tip.x, t.tip.y, t.tip.z);
-                        } else {
-                            trackers.remove(t);
-                            break outer;
-                        }
+                        //if (!t.tainted) return new PVector(t.tip.x, t.tip.y, t.tip.z);
+                        break;
                     case 1:
-                        ++t.weight;
                         skip = true;
-                        break outer;
+                        ++t.weight;
+                        break;
                     case 2:
                         skip = true;
-                        trackers.remove(t);
-                        break outer;
+                        t.tainted = true;
+                        break;
                 }
             }
-            if (!skip && trackers.size() < 10) {
-                trackers.add(new Tracker(v, inner, outer));
+            if (!skip && trackers.size() < 100) {
+                trackers.add(new Tracker(v, box));
             }
 
+        }
+
+        for(Tracker t : trackers) {
+            if (!t.tainted && t.weight > 10) return (PVector)(t.tip);
         }
 
         return null;
@@ -164,25 +163,22 @@ class V extends PVector implements Comparable<V> {
 }
 
 class Tracker {
-    public int weight = 0;
     public V tip;
-    public PVector inner, outer, imin, imax, omin, omax;
-    public float depth;
-    public boolean done = false;
+    public PVector box;
+    public boolean tainted = false;
+    public int weight = 0;
 
-    Tracker(V tip, PVector inner, PVector outer){
+    Tracker(V tip, PVector box){
         this.tip = tip;
-        this.inner = inner;
-        this.outer = outer;
+        this.box = box;
         this.recalculate();
     }
 
     public void recalculate() {
-        this.depth = this.tip.z + this.inner.z;
-        this.imin = new PVector(this.tip.x - this.inner.x, this.tip.y - this.inner.y);
-        this.imax = new PVector(this.tip.x + this.inner.x, this.tip.y + this.inner.y);
-        this.omin = new PVector(this.tip.x - this.outer.x, this.tip.y - this.outer.y);
-        this.omax = new PVector(this.tip.x + this.outer.x, this.tip.y + this.outer.y);
+    //     this.imin = new PVector(this.tip.x - this.inner.x, this.tip.y - this.inner.y);
+    //     this.imax = new PVector(this.tip.x + this.inner.x, this.tip.y + this.inner.y);
+    //     this.omin = new PVector(this.tip.x - this.outer.x, this.tip.y - this.outer.y);
+    //     this.omax = new PVector(this.tip.x + this.outer.x, this.tip.y + this.outer.y);
     }
 
     public void setTip(V tip) {
@@ -191,13 +187,25 @@ class Tracker {
     }
 
     public int test(V v) {
-        // detection completed
-        if (v.z > this.depth) return 0;
-        // inner box
-        if (this.imin.x <= v.x && v.x <= this.imax.x && this.imin.y <= v.y && v.y <= this.imax.y) return 1;
-        // outer box
-        if (this.omin.x <= v.x && v.x <= this.omax.x && this.omin.y <= v.y && v.y <= this.omax.y) return 2;
-        // outside
-        return 3;
+
+        float dx = abs(v.x - this.tip.x);
+        float dy = abs(v.y - this.tip.y);
+        float dz = abs(v.z - this.tip.z);
+
+        boolean insidex = dx - dz <= this.box.x;
+        boolean insidey = dy - dz <= this.box.y;
+
+        boolean inside = insidex && insidey;
+
+        if (inside) return 1;
+
+        if (dz <= this.box.z) {
+            boolean insideboxx = dx <= this.box.x + this.box.z;
+            boolean insideboxy = dy <= this.box.y + this.box.z;
+            boolean insidebox = insideboxx && insideboxy;
+            if (insidebox) return 2;
+        }
+
+        return 0;
     }
 }
