@@ -1,4 +1,5 @@
 import java.util.Collections;
+import shapes3d.utils.*;
 
 // depth processing class
 
@@ -14,7 +15,6 @@ class DepthProcessor {
         this.h = h;
         this.points = new ArrayList<V>(this.w * this.h);
         this.generateLookupTable();
-        this.track = new PVector();
     }
 
     public void generateLookupTable() {
@@ -25,24 +25,25 @@ class DepthProcessor {
     }
 
     public void setRawData(int[] rawData) {
+        Rot rot = new Rot(new PVector(1,0,0), radians(angle));
         this.points.clear();
         for (int i = 0, n = this.w * this.h; i < n; ++i) {
             V v = this.depthToWorld(i % this.w, i / this.w, rawData[i]);
             if (v == null) continue;
+            rot.applyTo((PVector)v);
             this.points.add(v);
         }
     }
 
-    public PVector detect() {
+    public ArrayList<PVector> detect() {
         // sort by depth
         Collections.sort(this.points);
         return this.getBlock();
     }
 
-    public PVector getBlock() {
-        int counter = 0;
-        PVector box = new PVector(0.2f, 0.2f, 0.2f);
-        ArrayList<Tracker> trackers = new ArrayList<Tracker>(10);
+    public ArrayList<PVector> getBlock() {
+
+        ArrayList<Tracker> trackers = new ArrayList<Tracker>(50);
 
         for (V v : this.points) {
 
@@ -50,42 +51,38 @@ class DepthProcessor {
 
             outer:
             for(Tracker t : trackers) {
-                switch (t.test(v)){
-                    case 0:
-                        //if (!t.tainted) return new PVector(t.tip.x, t.tip.y, t.tip.z);
-                        break;
+
+                switch (t.relation(v)) {
                     case 1:
                         skip = true;
-                        ++t.weight;
                         break;
                     case 2:
+                        t.invalidate();
                         skip = true;
-                        t.tainted = true;
                         break;
+                    default:
+                        // don't care
                 }
+
             }
-            if (!skip && trackers.size() < 100) {
+            if (!skip && trackers.size() < 50) {
                 trackers.add(new Tracker(v, box));
             }
 
         }
 
-        for(Tracker t : trackers) {
-            if (!t.tainted && t.weight > 10) return (PVector)(t.tip);
+        ArrayList<PVector> output = new ArrayList<PVector>(trackers.size());
+        for (Tracker tracker : trackers) {
+            if (tracker.isValid())
+                output.add((PVector)tracker.tip);
         }
+        return output;
+        // return (PVector)trackers.get(0).tip;
+        // for(Tracker t : trackers) {
+        //     if (!t.tainted && t.weight > 10) return (PVector)(t.tip);
+        // }
 
-        return null;
-    }
-
-    private int inside(PVector imin, PVector imax, PVector omin, PVector omax, float depth, V v) {
-        // finish if we are out of the block scope
-        if (v.z > depth) return 0;
-        // inner box
-        if (imin.x <= v.x && v.x <= imax.x && imin.y <= v.y && v.y <= imax.y) return 1;
-        // outer box
-        if (omin.x <= v.x && v.x <= omax.x && omin.y <= v.y && v.y <= omax.y) return 2;
-        // outside
-        return 3;
+        // return null;
     }
 
     public PVector getCone() {
@@ -155,57 +152,72 @@ class DepthProcessor {
 }
 
 class V extends PVector implements Comparable<V> {
-    public boolean skip = false;
+
     @Override
     public int compareTo(V d) {
         return this.z > d.z ? 1 : (this.z < d.z ? -1 : 0);
     }
 }
 
-class Tracker {
+class Tracker implements Comparable<Tracker> {
+
     public V tip;
     public PVector box;
-    public boolean tainted = false;
+    private boolean valid = true;
     public int weight = 0;
 
     Tracker(V tip, PVector box){
         this.tip = tip;
         this.box = box;
-        this.recalculate();
     }
 
-    public void recalculate() {
-    //     this.imin = new PVector(this.tip.x - this.inner.x, this.tip.y - this.inner.y);
-    //     this.imax = new PVector(this.tip.x + this.inner.x, this.tip.y + this.inner.y);
-    //     this.omin = new PVector(this.tip.x - this.outer.x, this.tip.y - this.outer.y);
-    //     this.omax = new PVector(this.tip.x + this.outer.x, this.tip.y + this.outer.y);
-    }
-
-    public void setTip(V tip) {
-        this.tip = tip;
-        this.recalculate();
-    }
-
-    public int test(V v) {
+    public int relation(V v) {
 
         float dx = abs(v.x - this.tip.x);
         float dy = abs(v.y - this.tip.y);
         float dz = abs(v.z - this.tip.z);
 
-        boolean insidex = dx - dz <= this.box.x;
-        boolean insidey = dy - dz <= this.box.y;
+        boolean insidex = dx - dz * 0.5f <= this.box.x;
+        boolean insidey = dy - dz * 0.5f <= this.box.y;
 
-        boolean inside = insidex && insidey;
-
-        if (inside) return 1;
+        if (insidex && insidey) return 1;
 
         if (dz <= this.box.z) {
-            boolean insideboxx = dx <= this.box.x + this.box.z;
-            boolean insideboxy = dy <= this.box.y + this.box.z;
-            boolean insidebox = insideboxx && insideboxy;
-            if (insidebox) return 2;
+            float ox = this.box.x + this.box.z * 0.5f;
+            float oy = this.box.y + this.box.z * 0.5f;
+            if (dx <= ox && dy <= oy) return 2;
         }
 
         return 0;
+    }
+
+    public boolean close(V v) {
+        float dx = abs(v.x - this.tip.x);
+        float dy = abs(v.y - this.tip.y);
+        float dz = abs(v.z - this.tip.z);
+
+        return dist(0.0f, 0.0f, 0.0f, dx, dy, dz) < this.tip.z;
+    }
+
+    public void invalidate() {
+        this.valid = false;
+    }
+
+    public boolean isValid() {
+        return this.valid;
+    }
+
+    @Override
+    public int compareTo(Tracker t) {
+        return this.weight > t.weight ? 1 : (this.weight < t.weight ? -1 : 0);
+        //return this.tip.z > t.tip.z ? 1 : (this.tip.z < t.tip.z ? -1 : 0);
+    }
+}
+
+class Track implements Comparable<Track> {
+    private int tick = 0;
+    @Override
+    public int compareTo(Track t) {
+        return this.tick > t.tick ? 1 : (this.tick < t.tick ? -1 : 0);
     }
 }

@@ -4,7 +4,7 @@ class Render3D {
     PApplet parent;
     int w, h;
     int[] points;
-    int scale = 10;
+    int scale = 12;
 
     Render3D(PApplet parent, int w, int h) {
         this.parent = parent;

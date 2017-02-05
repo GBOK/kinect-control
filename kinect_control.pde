@@ -12,11 +12,13 @@ int num = 5;
 int[][] t = new int[num][3];
 int damper = 2;
 
-float angle = 0.0;
-
 float meter = 200f;
 
 boolean connected = false;
+
+PVector box = new PVector(0.1f, 0.1f, 0.3f);
+
+float angle = 0.0f;
 
 void setup() {
     size(1280, 960, P3D);
@@ -50,7 +52,7 @@ void draw() {
     dp.setRawData(rawDepth); // process
 
     pushMatrix(); // center and rotate
-    translate(width / 2, height / 2, width / 2);
+    translate(width / 2, height / 2, -width / 2);
     rotateY(mouseX * TAU / width - PI);
 
     r.draw(dp.getPoints(), meter);
@@ -58,17 +60,34 @@ void draw() {
     //PVector p = dp.getTrack(); // get tracked point
     //PVector p = dp.getAverage(); // get tracked point
     //PVector p = dp.getWeighted(); // get tracked point
-    PVector p = dp.detect(); // get tracked point
-
-    if (p != null) {
+    ArrayList<PVector> ps = dp.detect(); // get tracked point
+    int counter = 0;
+    for (PVector p : ps) {
         pushMatrix(); // bannerize
         translate(p.x * meter, p.y * meter, -p.z * meter);
-        rotateY(-(mouseX * TAU / width - PI)); // banner
-        ellipseMode(CENTER);
+        //rotateY(-(mouseX * TAU / width - PI)); // banner
+
+        //ellipseMode(CENTER);
         pushStyle();
-        fill(255, 0, 0);
-        noStroke();
-        ellipse(0, 0, 10, 10);
+        colorMode(HSB, 100);
+        stroke(10 * counter++, 100, 100, 50);
+        strokeWeight(2);
+        noFill();
+        //ellipse(0, 0, 100, 100);
+
+        beginShape(QUAD_STRIP);
+        vertex(-box.x * meter , -box.y * meter, 0);
+        vertex(-(box.x + box.z * 0.5f) * meter, -(box.y + box.z * 0.5f) * meter, - box.z * meter);
+        vertex(-box.x * meter, box.y * meter, 0);
+        vertex(-(box.x + box.z * 0.5f) * meter, (box.y + box.z * 0.5f) * meter, - box.z * meter);
+        vertex(box.x * meter, box.y * meter, 0);
+        vertex((box.x + box.z * 0.5f) * meter, (box.y + box.z * 0.5f) * meter, - box.z * meter);
+        vertex(box.x * meter, -box.y * meter, 0);
+        vertex((box.x + box.z * 0.5f) * meter, -(box.y + box.z * 0.5f) * meter, - box.z * meter);
+        vertex(-box.x * meter, -box.y * meter, 0);
+        vertex(-(box.x + box.z * 0.5f) * meter, -(box.y + box.z * 0.5f) * meter, - box.z * meter);
+        endShape();
+
         popStyle();
         popMatrix(); // end bannerize
     }
@@ -79,7 +98,7 @@ void draw() {
 
 
     fill(255);
-    text("TILT: " + angle, 10, 20);
+    text("ANGLE: " + angle, 10, 20);
     text("KINECT: " + (plugged ? "DETECTED" : "N/A"), 10, 40);
     text("FPS:" + frameRate, 10, 60);
 }
@@ -88,11 +107,11 @@ void draw() {
 void keyPressed() {
     if (key == CODED) {
         if (keyCode == UP) {
-          angle++;
+          angle += 1.0f;
         } else if (keyCode == DOWN) {
-          angle--;
+          angle -= 1.0f;
         }
-        angle = constrain(angle, 0, 30);
+        angle = constrain(angle, -90, 90);
         kinect.setTilt(angle);
     } else if (key == '1') {
         kr.setFile("data/kinect_01/dat");
