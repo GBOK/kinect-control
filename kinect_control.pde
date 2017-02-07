@@ -20,6 +20,8 @@ PVector box = new PVector(0.1f, 0.1f, 0.3f);
 
 float angle = 0.0f;
 
+float limit = 2.0f;
+
 void setup() {
     size(1280, 960, P3D);
 
@@ -52,7 +54,7 @@ void draw() {
     dp.setRawData(rawDepth); // process
 
     pushMatrix(); // center and rotate
-    translate(width / 2, height / 2, -width / 2);
+    translate(width / 2, height / 2, 0);
     rotateY(mouseX * TAU / width - PI);
 
     r.draw(dp.getPoints(), meter);
@@ -112,7 +114,11 @@ void keyPressed() {
           angle -= 1.0f;
         }
         angle = constrain(angle, -90, 90);
-        kinect.setTilt(angle);
+        //kinect.setTilt(angle);
+    } else if (key == 'l') {
+        dp.setLimit(limit += 0.1f);
+    } else if (key == 'L') {
+        dp.setLimit(limit -= 0.1f);
     } else if (key == '1') {
         kr.setFile("data/kinect_01/dat");
         kr.startReplaying();

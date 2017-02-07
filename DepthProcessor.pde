@@ -9,12 +9,42 @@ class DepthProcessor {
     private ArrayList<V> points;
     private float[] lookup;
     private PVector track;
+    private float limit;
+    private int samplerate;
+    private int max;
 
-    DepthProcessor(int w, int h) {
+    DepthProcessor(int w, int h, int samplerate, float limit, int max) {
         this.w = w;
         this.h = h;
         this.points = new ArrayList<V>(this.w * this.h);
         this.generateLookupTable();
+        this.samplerate = samplerate;
+        this.limit = limit;
+        this.max = max;
+    }
+
+    DepthProcessor(int w, int h, int samplerate, float limit) {
+        this(w, h, samplerate, limit, 10);
+    }
+
+    DepthProcessor(int w, int h, int samplerate) {
+        this(w, h, samplerate, 1000.0f);
+    }
+
+    DepthProcessor(int w, int h) {
+        this(w, h, 3);
+    }
+
+    public void setLimit(float limit) {
+        this.limit = limit;
+    }
+
+    public void setSamplerate(int samplerate) {
+        this.samplerate = samplerate;
+    }
+
+    public void setMax(int max) {
+        this.max = max;
     }
 
     public void generateLookupTable() {
@@ -27,11 +57,22 @@ class DepthProcessor {
     public void setRawData(int[] rawData) {
         Rot rot = new Rot(new PVector(1,0,0), radians(angle));
         this.points.clear();
-        for (int i = 0, n = this.w * this.h; i < n; ++i) {
-            V v = this.depthToWorld(i % this.w, i / this.w, rawData[i]);
-            if (v == null) continue;
-            rot.applyTo((PVector)v);
-            this.points.add(v);
+        for (int y = 0; y < this.h; y += samplerate) {
+            for (int x = 0; x < this.w; x += samplerate) {
+                long d = 0;
+                int size = (int)pow(2, (samplerate - 1) * 2);
+                int side = (int)pow(2, samplerate - 1);
+                for (int s = 0; s < size; s++) {
+                    int sx = s % side;
+                    int sy = s / side;
+                    d += rawData[x + y * this.w];
+                }
+                d /= size;
+                V v = this.depthToWorld(x, y, (int)d);
+                if (v == null || v.z > this.limit) continue;
+                this.points.add(v);
+                rot.applyTo((PVector)v);
+            }
         }
     }
 
@@ -43,7 +84,7 @@ class DepthProcessor {
 
     public ArrayList<PVector> getBlock() {
 
-        ArrayList<Tracker> trackers = new ArrayList<Tracker>(50);
+        ArrayList<Tracker> trackers = new ArrayList<Tracker>(this.max);
 
         for (V v : this.points) {
 
@@ -65,7 +106,7 @@ class DepthProcessor {
                 }
 
             }
-            if (!skip && trackers.size() < 50) {
+            if (!skip && trackers.size() < this.max) {
                 trackers.add(new Tracker(v, box));
             }
 
@@ -77,49 +118,6 @@ class DepthProcessor {
                 output.add((PVector)tracker.tip);
         }
         return output;
-        // return (PVector)trackers.get(0).tip;
-        // for(Tracker t : trackers) {
-        //     if (!t.tainted && t.weight > 10) return (PVector)(t.tip);
-        // }
-
-        // return null;
-    }
-
-    public PVector getCone() {
-
-        int errors = 0; // current errors
-        int errlimit = 50; // max errors
-
-        float dlimit = 0.4f; // one meter
-
-        // sort by depth
-        Collections.sort(this.points);
-
-        V tip = null;
-        for (V v : this.points){
-            if (tip == null) {
-                tip = v;
-                continue;
-            }
-
-            // distace in depth
-            float dz = v.z - tip.z;
-
-            // distance in xy
-            float dxy = dist(v.x, v.y, tip.x, tip.y);
-
-            if (dz < dlimit) {
-                if (dz + 0.1f > dxy){
-                    continue;
-                } else if (++errors >= errlimit){
-                    tip = null;
-                }
-            } else {
-                break;
-            }
-        }
-
-        return tip != null ? new PVector(tip.x, tip.y, tip.z) : null;
     }
 
     public ArrayList<PVector> getPoints() {
@@ -143,81 +141,9 @@ class DepthProcessor {
         final double cx_d = 3.3930780975300314e+02;
         final double cy_d = 2.4273913761751615e+02;
         V result = new V();
-        //double depth = this.lookup[depthValue]; // this should be a lookup table
         result.x = (float)((x - cx_d) * depth * fx_d);
         result.y = (float)((y - cy_d) * depth * fy_d);
         result.z = (float)(depth);
         return result;
-    }
-}
-
-class V extends PVector implements Comparable<V> {
-
-    @Override
-    public int compareTo(V d) {
-        return this.z > d.z ? 1 : (this.z < d.z ? -1 : 0);
-    }
-}
-
-class Tracker implements Comparable<Tracker> {
-
-    public V tip;
-    public PVector box;
-    private boolean valid = true;
-    public int weight = 0;
-
-    Tracker(V tip, PVector box){
-        this.tip = tip;
-        this.box = box;
-    }
-
-    public int relation(V v) {
-
-        float dx = abs(v.x - this.tip.x);
-        float dy = abs(v.y - this.tip.y);
-        float dz = abs(v.z - this.tip.z);
-
-        boolean insidex = dx - dz * 0.5f <= this.box.x;
-        boolean insidey = dy - dz * 0.5f <= this.box.y;
-
-        if (insidex && insidey) return 1;
-
-        if (dz <= this.box.z) {
-            float ox = this.box.x + this.box.z * 0.5f;
-            float oy = this.box.y + this.box.z * 0.5f;
-            if (dx <= ox && dy <= oy) return 2;
-        }
-
-        return 0;
-    }
-
-    public boolean close(V v) {
-        float dx = abs(v.x - this.tip.x);
-        float dy = abs(v.y - this.tip.y);
-        float dz = abs(v.z - this.tip.z);
-
-        return dist(0.0f, 0.0f, 0.0f, dx, dy, dz) < this.tip.z;
-    }
-
-    public void invalidate() {
-        this.valid = false;
-    }
-
-    public boolean isValid() {
-        return this.valid;
-    }
-
-    @Override
-    public int compareTo(Tracker t) {
-        return this.weight > t.weight ? 1 : (this.weight < t.weight ? -1 : 0);
-        //return this.tip.z > t.tip.z ? 1 : (this.tip.z < t.tip.z ? -1 : 0);
-    }
-}
-
-class Track implements Comparable<Track> {
-    private int tick = 0;
-    @Override
-    public int compareTo(Track t) {
-        return this.tick > t.tick ? 1 : (this.tick < t.tick ? -1 : 0);
     }
 }
