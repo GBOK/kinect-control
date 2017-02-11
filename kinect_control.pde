@@ -12,20 +12,32 @@ int num = 5;
 int[][] t = new int[num][3];
 int damper = 2;
 
-float angle = 0.0;
-
 float meter = 200f;
 
 boolean connected = false;
 
+String setting = "";
+
+float rotation = 0.0f;
+
 void setup() {
-    size(1280, 960, P3D);
+    //fullScreen();
+    size(1280, 800, P3D);
+    pixelDensity(2);
 
     kinect = new Kinect(this);
+    kinect.setTilt(-10.0f);
+    kinect.enableMirror(true);
     kinect.initDepth();
 
     kr = new KinectRecorder();
+
     dp = new DepthProcessor(kinect.width, kinect.height);
+    //dp.setBack();
+    dp.setTop(-1.5f);
+    dp.setBottom(1f);
+    dp.setBack(2.5f);
+
     r = new Render3D(this, kinect.width, kinect.height);
 }
 
@@ -50,50 +62,118 @@ void draw() {
     dp.setRawData(rawDepth); // process
 
     pushMatrix(); // center and rotate
-    translate(width / 2, height / 2);
-    rotateY(mouseX * TAU / width - PI);
+    translate(width / 2, height / 2, 0);
+    if (mouseX > 0 || mouseY > 0) {
+        rotateY(mouseX * TAU / width - PI);
+        rotateX(-mouseY * TAU / height - PI);
+    } else {
+        rotation += 0.01f;
+        rotateY(rotation);
+    }
 
     r.draw(dp.getPoints(), meter);
+
+
 
     //PVector p = dp.getTrack(); // get tracked point
     //PVector p = dp.getAverage(); // get tracked point
     //PVector p = dp.getWeighted(); // get tracked point
-    PVector p = dp.getCone(); // get tracked point
-
-    if (p != null) {
+    ArrayList<Tracker> ts = dp.detect(); // get tracked point
+    PVector box = dp.getDetectionDimensions();
+    int counter = 0;
+    for (Tracker t : ts) {
+        pushStyle();
+        colorMode(HSB, 100);
+        stroke(t.c);
+        strokeWeight(0.5);
+        noFill();
+        PVector p = t.getLast();
         pushMatrix(); // bannerize
         translate(p.x * meter, p.y * meter, -p.z * meter);
-        rotateY(-(mouseX * TAU / width - PI)); // banner
-        ellipseMode(CENTER);
-        pushStyle();
-        fill(255, 0, 0);
-        noStroke();
-        ellipse(0, 0, 10, 10);
-        popStyle();
+        //rotateY(-(mouseX * TAU / width - PI)); // banner
+        //ellipseMode(CENTER);
+        //ellipse(0, 0, 100, 100);
+        beginShape(QUAD_STRIP);
+        vertex(-box.x * meter , -box.y * meter, 0);
+        vertex(-(box.x + box.z * 0.5f) * meter, -(box.y + box.z * 0.5f) * meter, - box.z * meter);
+        vertex(-box.x * meter, box.y * meter, 0);
+        vertex(-(box.x + box.z * 0.5f) * meter, (box.y + box.z * 0.5f) * meter, - box.z * meter);
+        vertex(box.x * meter, box.y * meter, 0);
+        vertex((box.x + box.z * 0.5f) * meter, (box.y + box.z * 0.5f) * meter, - box.z * meter);
+        vertex(box.x * meter, -box.y * meter, 0);
+        vertex((box.x + box.z * 0.5f) * meter, -(box.y + box.z * 0.5f) * meter, - box.z * meter);
+        vertex(-box.x * meter, -box.y * meter, 0);
+        vertex(-(box.x + box.z * 0.5f) * meter, -(box.y + box.z * 0.5f) * meter, - box.z * meter);
+        endShape();
         popMatrix(); // end bannerize
-    }
 
+        strokeWeight(2);
+        beginShape();
+        for (PVector h : t.history) {
+            vertex(h.x * meter, h.y * meter, -h.z * meter);
+        }
+        endShape();
+
+        popStyle();
+
+    }
 
 
     popMatrix(); // end center and rotate
 
 
     fill(255);
-    text("TILT: " + angle, 10, 20);
+    text("ANGLE: X: " + dp.getAngleXDeg() + " Y: " + dp.getAngleYDeg(), 10, 20);
     text("KINECT: " + (plugged ? "DETECTED" : "N/A"), 10, 40);
     text("FPS:" + frameRate, 10, 60);
+    text("TRACKERS:" + ts.size(), 10, 80);
+    text("BOX NEGATIVE: " + dp.getLeft() + " " + dp.getTop() + " " + dp.getFront(), 10, 100);
+    text("BOX POSITIVE: " + dp.getRight() + " " + dp.getBottom() + " " + dp.getBack(), 10, 120);
+    text("KINECT TILT: " + kinect.getTilt(), 10, 140);
 }
 
 // Adjust the angle and the depth threshold min and max
 void keyPressed() {
+    float box = 20;
     if (key == CODED) {
-        if (keyCode == UP) {
-          angle++;
-        } else if (keyCode == DOWN) {
-          angle--;
+
+        float add = 0;
+        if (keyCode == UP || keyCode == LEFT) {
+            add = -1.0f;
+        } else if (keyCode == DOWN || keyCode == RIGHT) {
+            add = 1.0f;
         }
-        angle = constrain(angle, 0, 30);
-        kinect.setTilt(angle);
+        switch (setting) {
+            case "left":
+                dp.setLeft(dp.getLeft() + add);
+                break;
+            case "right":
+                dp.setRight(dp.getRight() + add);
+                break;
+            case "top":
+                dp.setTop(dp.getTop() + add);
+                break;
+            case "bottom":
+                dp.setBottom(dp.getBottom() + add);
+                break;
+            case "front":
+                dp.setFront(dp.getFront() + add);
+                break;
+            case "back":
+                dp.setBack(dp.getBack() + add);
+                break;
+            case "angle x":
+                dp.setAngleXDeg(dp.getAngleXDeg() + add);
+                break;
+            case "angle y":
+                dp.setAngleYDeg(dp.getAngleYDeg() + add);
+                break;
+            case "kinect":
+                kinect.setTilt(kinect.getTilt() + add);
+                break;
+            default:
+        }
+        println(dp.getLeft());
     } else if (key == '1') {
         kr.setFile("data/kinect_01/dat");
         kr.startReplaying();
@@ -111,5 +191,25 @@ void keyPressed() {
         kr.startReplaying();
     } else if (key == ' ') {
         kr.startStopReplaying();
+    } else if (key == 'a') {
+        setting = "left";
+    } else if (key == 'd') {
+        setting = "right";
+    } else if (key == 'w') {
+        setting = "top";
+    } else if (key == 's') {
+        setting = "bottom";
+    } else if (key == 'f') {
+        setting = "front";
+    } else if (key == 'b') {
+        setting = "back";
+    } else if (key == 'x') {
+        setting = "angle x";
+    } else if (key == 'y') {
+        setting = "angle y";
+    } else if (key == 'k') {
+        setting = "kinect";
     }
+
+    //dp.setBox(-box, -box, -box, box, box, box);
 }
