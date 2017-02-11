@@ -4,21 +4,27 @@ class Tracker implements Comparable<Tracker> {
 
     public ArrayList<PVector> history;
     private float distance;
+    private int threshold;
     private int tick = 0;
     public color c;
 
-    Tracker(V initial, float distance) {
+    Tracker(V initial, float distance, int threshold) {
         this.history = new ArrayList<PVector>(100);
         this.claim(initial);
         this.distance = distance;
+        this.threshold = threshold;
         pushStyle();
         colorMode(HSB, 100);
         this.c = color(random(0, 100), 100, 100, 50);
         popStyle();
     }
 
+    Tracker(V initial, float distance) {
+        this(initial, distance, 2);
+    }
+
     Tracker(V initial) {
-        this(initial, 0.1f);
+        this(initial, 0.3f);
     }
 
     Tracker() {
@@ -26,14 +32,14 @@ class Tracker implements Comparable<Tracker> {
     }
 
     public boolean prune() {
-        if (++this.tick > this.history.size() + 1) {
+        if (++this.tick > this.history.size() + this.threshold) {
             return true;
         }
         return false;
     }
 
     public boolean isVisible() {
-        return this.tick > this.history.size();
+        return this.history.size() > this.threshold;
     }
 
     public PVector getLast() {

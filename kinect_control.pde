@@ -16,21 +16,28 @@ float meter = 200f;
 
 boolean connected = false;
 
-PVector box = new PVector(0.1f, 0.1f, 0.3f);
-
-float limit = 2.0f;
-
 String setting = "";
 
+float rotation = 0.0f;
+
 void setup() {
-    size(1280, 960, P3D);
+    //fullScreen();
+    size(1280, 800, P3D);
     pixelDensity(2);
 
     kinect = new Kinect(this);
+    kinect.setTilt(-10.0f);
+    kinect.enableMirror(true);
     kinect.initDepth();
 
     kr = new KinectRecorder();
+
     dp = new DepthProcessor(kinect.width, kinect.height);
+    //dp.setBack();
+    dp.setTop(-1.5f);
+    dp.setBottom(1f);
+    dp.setBack(2.5f);
+
     r = new Render3D(this, kinect.width, kinect.height);
 }
 
@@ -56,8 +63,13 @@ void draw() {
 
     pushMatrix(); // center and rotate
     translate(width / 2, height / 2, 0);
-    rotateY(mouseX * TAU / width - PI);
-    rotateX(-mouseY * TAU / height - PI);
+    if (mouseX > 0 || mouseY > 0) {
+        rotateY(mouseX * TAU / width - PI);
+        rotateX(-mouseY * TAU / height - PI);
+    } else {
+        rotation += 0.01f;
+        rotateY(rotation);
+    }
 
     r.draw(dp.getPoints(), meter);
 
@@ -67,6 +79,7 @@ void draw() {
     //PVector p = dp.getAverage(); // get tracked point
     //PVector p = dp.getWeighted(); // get tracked point
     ArrayList<Tracker> ts = dp.detect(); // get tracked point
+    PVector box = dp.getDetectionDimensions();
     int counter = 0;
     for (Tracker t : ts) {
         pushStyle();
@@ -94,7 +107,7 @@ void draw() {
         endShape();
         popMatrix(); // end bannerize
 
-        strokeWeight(10);
+        strokeWeight(2);
         beginShape();
         for (PVector h : t.history) {
             vertex(h.x * meter, h.y * meter, -h.z * meter);
@@ -114,6 +127,9 @@ void draw() {
     text("KINECT: " + (plugged ? "DETECTED" : "N/A"), 10, 40);
     text("FPS:" + frameRate, 10, 60);
     text("TRACKERS:" + ts.size(), 10, 80);
+    text("BOX NEGATIVE: " + dp.getLeft() + " " + dp.getTop() + " " + dp.getFront(), 10, 100);
+    text("BOX POSITIVE: " + dp.getRight() + " " + dp.getBottom() + " " + dp.getBack(), 10, 120);
+    text("KINECT TILT: " + kinect.getTilt(), 10, 140);
 }
 
 // Adjust the angle and the depth threshold min and max
@@ -152,6 +168,9 @@ void keyPressed() {
             case "angle y":
                 dp.setAngleYDeg(dp.getAngleYDeg() + add);
                 break;
+            case "kinect":
+                kinect.setTilt(kinect.getTilt() + add);
+                break;
             default:
         }
         println(dp.getLeft());
@@ -188,6 +207,9 @@ void keyPressed() {
         setting = "angle x";
     } else if (key == 'y') {
         setting = "angle y";
+    } else if (key == 'k') {
+        setting = "kinect";
     }
+
     //dp.setBox(-box, -box, -box, box, box, box);
 }

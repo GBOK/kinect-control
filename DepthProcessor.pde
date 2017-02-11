@@ -11,28 +11,36 @@ class DepthProcessor {
     private float[] lookup;
     private int samplerate;
     private float sensitivity;
-    private int max;
+    private int max = 1000; // maximum number of trackers (speed up memory allocation);
+    private ArrayList<Tracker> trackers;
+    private float depth;
+    private PVector detectionDimensions;
     private float angleX = 0.0f, angleY = 0.0f;
     private PVector negative = new PVector(-10.0f, -10.0f, -10.0f);
     private PVector positive = new PVector(10.0f, 10.0f, 10.0f);
-    private ArrayList<Tracker> trackers = new ArrayList<Tracker>(10);
 
-    DepthProcessor(int w, int h, int samplerate, float sensitivity, int max) {
+    DepthProcessor(int w, int h, int samplerate, float sensitivity, float depth, PVector detectionDimensions) {
         this.w = w;
         this.h = h;
         this.points = new ArrayList<V>(this.w * this.h);
         this.generateLookupTable();
         this.samplerate = samplerate;
         this.sensitivity = sensitivity;
-        this.max = max;
+        this.depth = depth;
+        this.detectionDimensions = detectionDimensions;
+        this.trackers = new ArrayList<Tracker>(this.max);
+    }
+
+    DepthProcessor(int w, int h, int samplerate, float sensitivity, float depth) {
+        this(w, h, samplerate, sensitivity, depth, new PVector(0.1f, 0.1f, 0.25f));
     }
 
     DepthProcessor(int w, int h, int samplerate, float sensitivity) {
-        this(w, h, samplerate, sensitivity, 10);
+        this(w, h, samplerate, sensitivity, 2.0);
     }
 
     DepthProcessor(int w, int h, int samplerate) {
-        this(w, h, samplerate, 0.2f);
+        this(w, h, samplerate, 0.3f);
     }
 
     DepthProcessor(int w, int h) {
@@ -128,8 +136,16 @@ class DepthProcessor {
         this.samplerate = samplerate;
     }
 
-    public void setMax(int max) {
-        this.max = max;
+    public void setDetectionDimensions(float x, float y, float z) {
+        this.setDetectionDimensions(new PVector(x, y, z));
+    }
+
+    public void setDetectionDimensions(PVector detectionDimensions) {
+        this.detectionDimensions = detectionDimensions;
+    }
+
+    public PVector getDetectionDimensions() {
+        return this.detectionDimensions;
     }
 
     public void setRawData(int[] rawData) {
@@ -149,6 +165,7 @@ class DepthProcessor {
                 d /= size;
                 V v = this.depthToWorld(x, y, (int)d);
                 if (v == null) continue;
+                v.z -= this.depth;
                 rotY.applyTo((PVector)v);
                 rotX.applyTo((PVector)v);
                 if (v.x < this.negative.x ||
@@ -183,7 +200,7 @@ class DepthProcessor {
                 }
             }
             if (!skip && tracks.size() < this.max) {
-                tracks.add(new Track(v, box));
+                tracks.add(new Track(v, this.detectionDimensions));
             }
         }
         for (Track track : tracks) {

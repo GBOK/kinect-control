@@ -2,13 +2,13 @@
 class Track implements Comparable<Track> {
 
     public V tip;
-    public PVector box;
+    public PVector dimesions;
     private boolean valid = true;
     public int weight = 0;
 
-    Track(V tip, PVector box){
+    Track(V tip, PVector dimesions){
         this.tip = tip;
-        this.box = box;
+        this.dimesions = dimesions;
     }
 
     public int relation(V v) {
@@ -17,14 +17,15 @@ class Track implements Comparable<Track> {
         float dy = abs(v.y - this.tip.y);
         float dz = abs(v.z - this.tip.z);
 
-        boolean insidex = dx - dz * 0.5f <= this.box.x;
-        boolean insidey = dy - dz * 0.5f <= this.box.y;
+        boolean insidex = dx - dz * 0.5f <= this.dimesions.x;
+        boolean insidey = dy - dz * 0.5f <= this.dimesions.y;
 
+        ++ this.weight;
         if (insidex && insidey) return 1;
 
-        if (dz <= this.box.z) {
-            float ox = this.box.x + this.box.z * 0.5f;
-            float oy = this.box.y + this.box.z * 0.5f;
+        if (dz <= this.dimesions.z) {
+            float ox = this.dimesions.x + this.dimesions.z * 0.5f;
+            float oy = this.dimesions.y + this.dimesions.z * 0.5f;
             if (dx <= ox && dy <= oy) return 2;
         }
 
@@ -44,7 +45,7 @@ class Track implements Comparable<Track> {
     }
 
     public boolean isValid() {
-        return this.valid;
+        return this.valid && this.weight > 10;
     }
 
     @Override
