@@ -18,12 +18,13 @@ boolean connected = false;
 
 PVector box = new PVector(0.1f, 0.1f, 0.3f);
 
-float angle = 0.0f;
-
 float limit = 2.0f;
+
+String setting = "";
 
 void setup() {
     size(1280, 960, P3D);
+    pixelDensity(2);
 
     kinect = new Kinect(this);
     kinect.initDepth();
@@ -56,27 +57,29 @@ void draw() {
     pushMatrix(); // center and rotate
     translate(width / 2, height / 2, 0);
     rotateY(mouseX * TAU / width - PI);
+    rotateX(-mouseY * TAU / height - PI);
 
     r.draw(dp.getPoints(), meter);
+
+
 
     //PVector p = dp.getTrack(); // get tracked point
     //PVector p = dp.getAverage(); // get tracked point
     //PVector p = dp.getWeighted(); // get tracked point
-    ArrayList<PVector> ps = dp.detect(); // get tracked point
+    ArrayList<Tracker> ts = dp.detect(); // get tracked point
     int counter = 0;
-    for (PVector p : ps) {
+    for (Tracker t : ts) {
+        pushStyle();
+        colorMode(HSB, 100);
+        stroke(t.c);
+        strokeWeight(0.5);
+        noFill();
+        PVector p = t.getLast();
         pushMatrix(); // bannerize
         translate(p.x * meter, p.y * meter, -p.z * meter);
         //rotateY(-(mouseX * TAU / width - PI)); // banner
-
         //ellipseMode(CENTER);
-        pushStyle();
-        colorMode(HSB, 100);
-        stroke(10 * counter++, 100, 100, 50);
-        strokeWeight(2);
-        noFill();
         //ellipse(0, 0, 100, 100);
-
         beginShape(QUAD_STRIP);
         vertex(-box.x * meter , -box.y * meter, 0);
         vertex(-(box.x + box.z * 0.5f) * meter, -(box.y + box.z * 0.5f) * meter, - box.z * meter);
@@ -89,36 +92,69 @@ void draw() {
         vertex(-box.x * meter, -box.y * meter, 0);
         vertex(-(box.x + box.z * 0.5f) * meter, -(box.y + box.z * 0.5f) * meter, - box.z * meter);
         endShape();
+        popMatrix(); // end bannerize
+
+        strokeWeight(10);
+        beginShape();
+        for (PVector h : t.history) {
+            vertex(h.x * meter, h.y * meter, -h.z * meter);
+        }
+        endShape();
 
         popStyle();
-        popMatrix(); // end bannerize
-    }
 
+    }
 
 
     popMatrix(); // end center and rotate
 
 
     fill(255);
-    text("ANGLE: " + angle, 10, 20);
+    text("ANGLE: X: " + dp.getAngleXDeg() + " Y: " + dp.getAngleYDeg(), 10, 20);
     text("KINECT: " + (plugged ? "DETECTED" : "N/A"), 10, 40);
     text("FPS:" + frameRate, 10, 60);
+    text("TRACKERS:" + ts.size(), 10, 80);
 }
 
 // Adjust the angle and the depth threshold min and max
 void keyPressed() {
+    float box = 20;
     if (key == CODED) {
-        if (keyCode == UP) {
-          angle += 1.0f;
-        } else if (keyCode == DOWN) {
-          angle -= 1.0f;
+
+        float add = 0;
+        if (keyCode == UP || keyCode == LEFT) {
+            add = -1.0f;
+        } else if (keyCode == DOWN || keyCode == RIGHT) {
+            add = 1.0f;
         }
-        angle = constrain(angle, -90, 90);
-        //kinect.setTilt(angle);
-    } else if (key == 'l') {
-        dp.setLimit(limit += 0.1f);
-    } else if (key == 'L') {
-        dp.setLimit(limit -= 0.1f);
+        switch (setting) {
+            case "left":
+                dp.setLeft(dp.getLeft() + add);
+                break;
+            case "right":
+                dp.setRight(dp.getRight() + add);
+                break;
+            case "top":
+                dp.setTop(dp.getTop() + add);
+                break;
+            case "bottom":
+                dp.setBottom(dp.getBottom() + add);
+                break;
+            case "front":
+                dp.setFront(dp.getFront() + add);
+                break;
+            case "back":
+                dp.setBack(dp.getBack() + add);
+                break;
+            case "angle x":
+                dp.setAngleXDeg(dp.getAngleXDeg() + add);
+                break;
+            case "angle y":
+                dp.setAngleYDeg(dp.getAngleYDeg() + add);
+                break;
+            default:
+        }
+        println(dp.getLeft());
     } else if (key == '1') {
         kr.setFile("data/kinect_01/dat");
         kr.startReplaying();
@@ -136,5 +172,22 @@ void keyPressed() {
         kr.startReplaying();
     } else if (key == ' ') {
         kr.startStopReplaying();
+    } else if (key == 'a') {
+        setting = "left";
+    } else if (key == 'd') {
+        setting = "right";
+    } else if (key == 'w') {
+        setting = "top";
+    } else if (key == 's') {
+        setting = "bottom";
+    } else if (key == 'f') {
+        setting = "front";
+    } else if (key == 'b') {
+        setting = "back";
+    } else if (key == 'x') {
+        setting = "angle x";
+    } else if (key == 'y') {
+        setting = "angle y";
     }
+    //dp.setBox(-box, -box, -box, box, box, box);
 }

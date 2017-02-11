@@ -20,7 +20,7 @@ class Render3D {
     void draw(ArrayList<PVector> points, float meter) {
         this.parent.pushStyle();
         this.parent.noFill();
-        this.parent.strokeWeight(1);
+        this.parent.strokeWeight(0.5);
         this.parent.stroke(255);
         int counter = 0;
         for (PVector d : points) {

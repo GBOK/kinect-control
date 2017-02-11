@@ -1,42 +1,127 @@
-import java.util.Collections;
+import java.util.*;
 import shapes3d.utils.*;
 
-// depth processing class
-
+/**
+ *
+ */
 class DepthProcessor {
 
     private int w, h;
     private ArrayList<V> points;
     private float[] lookup;
-    private PVector track;
-    private float limit;
     private int samplerate;
+    private float sensitivity;
     private int max;
+    private float angleX = 0.0f, angleY = 0.0f;
+    private PVector negative = new PVector(-10.0f, -10.0f, -10.0f);
+    private PVector positive = new PVector(10.0f, 10.0f, 10.0f);
+    private ArrayList<Tracker> trackers = new ArrayList<Tracker>(10);
 
-    DepthProcessor(int w, int h, int samplerate, float limit, int max) {
+    DepthProcessor(int w, int h, int samplerate, float sensitivity, int max) {
         this.w = w;
         this.h = h;
         this.points = new ArrayList<V>(this.w * this.h);
         this.generateLookupTable();
         this.samplerate = samplerate;
-        this.limit = limit;
+        this.sensitivity = sensitivity;
         this.max = max;
     }
 
-    DepthProcessor(int w, int h, int samplerate, float limit) {
-        this(w, h, samplerate, limit, 10);
+    DepthProcessor(int w, int h, int samplerate, float sensitivity) {
+        this(w, h, samplerate, sensitivity, 10);
     }
 
     DepthProcessor(int w, int h, int samplerate) {
-        this(w, h, samplerate, 1000.0f);
+        this(w, h, samplerate, 0.2f);
     }
 
     DepthProcessor(int w, int h) {
         this(w, h, 3);
     }
 
-    public void setLimit(float limit) {
-        this.limit = limit;
+    public void setBox(float nx, float ny, float nz, float px, float py, float pz) {
+        this.negative.set(nx, ny, nz);
+        this.positive.set(px, py, pz);
+    }
+
+    public void setLeft(float nx) {
+        this.negative.x = nx;
+    }
+
+    public void setRight(float px) {
+        this.positive.x = px;
+    }
+
+    public void setTop(float ny) {
+        this.negative.y = ny;
+    }
+
+    public void setBottom(float py) {
+        this.positive.y = py;
+    }
+
+    public void setFront(float nz) {
+        this.negative.z = nz;
+    }
+
+    public void setBack(float pz) {
+        this.positive.z = pz;
+    }
+
+    public float getLeft() {
+        return this.negative.x;
+    }
+
+    public float getRight() {
+        return this.positive.x;
+    }
+
+    public float getTop() {
+        return this.negative.y;
+    }
+
+    public float getBottom() {
+        return this.positive.y;
+    }
+
+    public float getFront() {
+        return this.negative.z;
+    }
+
+    public float getBack() {
+        return this.positive.z;
+    }
+
+    public void setAngleX(float angleX) {
+        this.angleX = angleX;
+    }
+
+    public void setAngleY(float angleY) {
+        this.angleY = angleY;
+    }
+
+    public float getAngleX() {
+        return this.angleX;
+    }
+
+    public float getAngleY() {
+        return this.angleY;
+    }
+
+    public void setAngleXDeg(float angleXDeg) {
+        this.setAngleX(angleXDeg * PI / 180.0f);
+    }
+
+    public void setAngleYDeg(float angleYDeg) {
+        this.setAngleY(angleYDeg * PI / 180.0f);
+    }
+
+    public float getAngleXDeg() {
+        return this.getAngleX() * 180.0f / PI;
+    }
+
+    public float getAngleYDeg() {
+        return this.getAngleY() * 180.0f / PI;
     }
 
     public void setSamplerate(int samplerate) {
@@ -47,15 +132,9 @@ class DepthProcessor {
         this.max = max;
     }
 
-    public void generateLookupTable() {
-        this.lookup = new float[2048];
-        for (int i = 0; i < 2048; ++i) {
-            this.lookup[i] = this.rawDepthToMeters(i);
-        }
-    }
-
     public void setRawData(int[] rawData) {
-        Rot rot = new Rot(new PVector(1,0,0), radians(angle));
+        Rot rotX = new Rot(new PVector(1, 0, 0), this.angleX);
+        Rot rotY = new Rot(new PVector(0, 1, 0), this.angleY);
         this.points.clear();
         for (int y = 0; y < this.h; y += samplerate) {
             for (int x = 0; x < this.w; x += samplerate) {
@@ -69,30 +148,28 @@ class DepthProcessor {
                 }
                 d /= size;
                 V v = this.depthToWorld(x, y, (int)d);
-                if (v == null || v.z > this.limit) continue;
+                if (v == null) continue;
+                rotY.applyTo((PVector)v);
+                rotX.applyTo((PVector)v);
+                if (v.x < this.negative.x ||
+                    v.y < this.negative.y ||
+                    v.z < this.negative.z ||
+                    v.x > this.positive.x ||
+                    v.y > this.positive.y ||
+                    v.z > this.positive.z)
+                    continue;
                 this.points.add(v);
-                rot.applyTo((PVector)v);
             }
         }
     }
 
-    public ArrayList<PVector> detect() {
-        // sort by depth
-        Collections.sort(this.points);
-        return this.getBlock();
-    }
-
-    public ArrayList<PVector> getBlock() {
-
-        ArrayList<Tracker> trackers = new ArrayList<Tracker>(this.max);
-
+    public ArrayList<Tracker> detect() {
+        Collections.sort(this.points); // sort by depth
+        ArrayList<Track> tracks = new ArrayList<Track>(this.max);
         for (V v : this.points) {
-
             boolean skip = false;
-
             outer:
-            for(Tracker t : trackers) {
-
+            for(Track t : tracks) {
                 switch (t.relation(v)) {
                     case 1:
                         skip = true;
@@ -102,26 +179,50 @@ class DepthProcessor {
                         skip = true;
                         break;
                     default:
-                        // don't care
+                        // don't care. skip
                 }
-
             }
-            if (!skip && trackers.size() < this.max) {
-                trackers.add(new Tracker(v, box));
+            if (!skip && tracks.size() < this.max) {
+                tracks.add(new Track(v, box));
             }
-
         }
-
-        ArrayList<PVector> output = new ArrayList<PVector>(trackers.size());
-        for (Tracker tracker : trackers) {
-            if (tracker.isValid())
-                output.add((PVector)tracker.tip);
+        for (Track track : tracks) {
+            if (track.isValid()) {
+                for (Tracker tracker : this.trackers) {
+                    if (tracker.claim(track.tip)) {
+                        track = null;
+                        break;
+                    }
+                }
+                if (track != null) {
+                    this.trackers.add(new Tracker(track.tip, this.sensitivity));
+                }
+            }
         }
-        return output;
+        ArrayList<Tracker> output = new ArrayList<Tracker>(this.trackers.size());
+        Iterator<Tracker> itr = this.trackers.iterator();
+        while (itr.hasNext()) {
+            Tracker tr = itr.next();
+            if (tr.prune()) {
+                itr.remove();
+            } else {
+                if (tr.isVisible()) {
+                    output.add(tr);
+                }
+            }
+        }
+        return this.trackers;
     }
 
     public ArrayList<PVector> getPoints() {
         return new ArrayList<PVector>(this.points);
+    }
+
+    private void generateLookupTable() {
+        this.lookup = new float[2048];
+        for (int i = 0; i < 2048; ++i) {
+            this.lookup[i] = this.rawDepthToMeters(i);
+        }
     }
 
     // These functions come from: http://graphics.stanford.edu/~mdfisher/Kinect.html
